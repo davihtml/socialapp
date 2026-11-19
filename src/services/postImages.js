@@ -1,5 +1,7 @@
 import { supabase } from './supabase';
 
+import { File } from 'expo-file-system';
+
 
 // Enviar imagem de uma publicação
 export async function enviarImagemPublicacao(userId, imagem) {
@@ -14,10 +16,20 @@ export async function enviarImagemPublicacao(userId, imagem) {
 
     const nomeArquivo = `${userId}/imagem-${Date.now()}.${extensao}`;
 
-    // Converter imagem para ArrayBuffer
-    const resposta = await fetch(imagem.uri);
+    // Ler imagem usando o sistema de arquivos do Expo
+    const arquivoLocal = new File(imagem.uri);
 
-    const arquivo = await resposta.arrayBuffer();
+    const arquivo = await arquivoLocal.arrayBuffer();
+
+    console.log('URI:', imagem.uri);
+    console.log('MIME:', imagem.mimeType);
+    console.log('Tamanho do arquivo:', arquivo.byteLength);
+
+    if (!arquivo || arquivo.byteLength <= 100) {
+        throw new Error(
+            'A imagem selecionada está vazia ou inválida.'
+        );
+    }
 
     // Enviar para o Supabase Storage
     const { error } = await supabase

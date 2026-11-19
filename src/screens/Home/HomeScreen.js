@@ -22,6 +22,9 @@ import ChatScreen from '../Chat/ChatScreen';
 import NotificacoesScreen from '../Notifications/NotificacoesScreen';
 import PesquisaScreen from '../Pesquisa/PesquisaScreen';
 import SalvosScreen from '../Salvos/SalvosScreen';
+import IdeiasScreen from '../Ideias/IdeiasScreen';
+
+
 
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -109,6 +112,13 @@ function BotaoNav({ children, onPress, estilo }) {
 
 // Tela principal
 export default function HomeScreen() {
+
+
+
+
+
+
+
 
     const { user } = useAuth();
 
@@ -546,6 +556,7 @@ export default function HomeScreen() {
     // Navegação inferior: somente as cinco telas principais
     const mostrarNavegacao = [
         'feed',
+        'ideias',
         'conversas',
         'pesquisa',
         'perfil'
@@ -636,6 +647,17 @@ export default function HomeScreen() {
         );
 
     }
+
+// Ideias
+else if (tela === 'ideias') {
+
+    conteudo = (
+
+        <IdeiasScreen />
+
+    );
+
+}
 
 
     // Conversas
@@ -866,6 +888,29 @@ export default function HomeScreen() {
                             tela === 'feed' && styles.labelAtivo
                         ]}>
                             Início
+                        </Text>
+
+                    </BotaoNav>
+
+                    {/* IDEIAS */}
+
+                    <BotaoNav
+                        onPress={() => setTela('ideias')}
+                        estilo={styles.itemNav}
+                    >
+
+                        <Text style={[
+                            styles.iconePesquisa,
+                            tela === 'ideias' && styles.labelAtivo
+                        ]}>
+                            ◇
+                        </Text>
+
+                        <Text style={[
+                            styles.navLabel,
+                            tela === 'ideias' && styles.labelAtivo
+                        ]}>
+                            Ideias
                         </Text>
 
                     </BotaoNav>

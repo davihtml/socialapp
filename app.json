@@ -1,0 +1,41 @@
+{
+  "expo": {
+    "name": "orbit2",
+    "slug": "orbit2",
+    "scheme": "orbit",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "googleServicesFile": "./google-services.json",
+      "adaptiveIcon": {
+        "backgroundColor": "#0B0910",
+        "foregroundImage": "./assets/icon.png"
+      },
+      "package": "com.davilzxs.orbit2"
+    },
+    "web": {
+      "favicon": "./assets/icon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "react-native-quick-crypto",
+      "expo-notifications"
+    ],
+    "extra": {
+      "router": {
+        "asyncRoutes": {
+          "web": true
+        }
+      },
+      "eas": {
+        "projectId": "9840555f-522b-4691-9100-dd24f3a8f918"
+      }
+    }
+  }
+}

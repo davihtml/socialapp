@@ -23,8 +23,8 @@ import NotificacoesScreen from '../Notifications/NotificacoesScreen';
 import PesquisaScreen from '../Pesquisa/PesquisaScreen';
 import SalvosScreen from '../Salvos/SalvosScreen';
 import IdeiasScreen from '../Ideias/IdeiasScreen';
-
-
+import CriarGrupoScreen from '../CriarGrupo/CriarGrupoScreen';
+import GroupChatScreen from '../GroupChat/GroupChatScreen';
 
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -113,16 +113,11 @@ function BotaoNav({ children, onPress, estilo }) {
 // Tela principal
 export default function HomeScreen() {
 
-
-
-
-
-
-
-
     const { user } = useAuth();
 
     const [tela, setTela] = useState('feed');
+
+    const [grupoSelecionado, setGrupoSelecionado] = useState(null);
 
     const [telaAnteriorPerfil, setTelaAnteriorPerfil] = useState('feed');
 
@@ -553,6 +548,24 @@ export default function HomeScreen() {
     }
 
 
+    // Abrir criação de grupo
+    function abrirCriacaoGrupo() {
+
+        setTela('criarGrupo');
+
+    }
+
+
+    // Abrir grupo
+    function abrirGrupo(grupo) {
+
+        setGrupoSelecionado(grupo);
+
+        setTela('chatGrupo');
+
+    }
+
+
     // Navegação inferior: somente as cinco telas principais
     const mostrarNavegacao = [
         'feed',
@@ -648,16 +661,32 @@ export default function HomeScreen() {
 
     }
 
-// Ideias
-else if (tela === 'ideias') {
 
-    conteudo = (
+    // Ideias
+    else if (tela === 'ideias') {
 
-        <IdeiasScreen />
+        conteudo = (
 
-    );
+            <IdeiasScreen />
 
-}
+        );
+
+    }
+
+
+    // Criar grupo
+    else if (tela === 'criarGrupo') {
+
+        conteudo = (
+
+            <CriarGrupoScreen
+                onVoltar={() => setTela('conversas')}
+                onGrupoCriado={abrirGrupo}
+            />
+
+        );
+
+    }
 
 
     // Conversas
@@ -668,6 +697,8 @@ else if (tela === 'ideias') {
             <ConversasScreen
                 onVoltar={() => setTela('feed')}
                 onAbrirConversa={abrirConversaExistente}
+                onCriarGrupo={abrirCriacaoGrupo}
+                onAbrirGrupo={abrirGrupo}
             />
 
         );
@@ -740,7 +771,25 @@ else if (tela === 'ideias') {
     }
 
 
-    // Chat
+    // Chat em grupo
+    else if (tela === 'chatGrupo' && grupoSelecionado) {
+
+        conteudo = (
+
+            <GroupChatScreen
+                grupo={grupoSelecionado}
+                onVoltar={() => {
+                    setTela('conversas');
+                    setGrupoSelecionado(null);
+                }}
+            />
+
+        );
+
+    }
+
+
+    // Chat individual
     else if (
         tela === 'chat' &&
         conversaSelecionada &&
@@ -891,6 +940,7 @@ else if (tela === 'ideias') {
                         </Text>
 
                     </BotaoNav>
+
 
                     {/* IDEIAS */}
 

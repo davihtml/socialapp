@@ -17,6 +17,11 @@ import {
 } from '../../services/chat';
 
 import {
+    buscarGrupos,
+    buscarMensagensGrupo
+} from '../../services/groupChat';
+
+import {
     buscarPerfil
 } from '../../services/profiles';
 
@@ -38,14 +43,20 @@ const CORES = {
 
 export default function ConversasScreen({
     onVoltar,
-    onAbrirConversa
+    onAbrirConversa,
+    onCriarGrupo,
+    onAbrirGrupo
 }) {
 
     const [conversas, setConversas] = useState([]);
+    const [grupos, setGrupos] = useState([]);
     const [carregando, setCarregando] = useState(true);
 
 
-    // Formatar horário
+    // =====================================
+    // FORMATAR HORÁRIO
+    // =====================================
+
     function formatarHorario(data) {
 
         if (!data) return '';
@@ -70,7 +81,10 @@ export default function ConversasScreen({
     }
 
 
-    // Carregar conversas
+    // =====================================
+    // CARREGAR CONVERSAS E GRUPOS
+    // =====================================
+
     async function carregarConversas(mostrarLoading = true) {
 
         try {
@@ -90,7 +104,20 @@ export default function ConversasScreen({
                 throw new Error('Usuário não conectado.');
             }
 
-            const lista = await buscarConversas();
+
+            // Buscar conversas e grupos simultaneamente
+
+            const [lista, listaGrupos] = await Promise.all([
+
+                buscarConversas(),
+                buscarGrupos()
+
+            ]);
+
+
+            // =====================================
+            // PROCESSAR CONVERSAS INDIVIDUAIS
+            // =====================================
 
             const conversasDetalhadas = await Promise.all(
 
@@ -130,17 +157,66 @@ export default function ConversasScreen({
             );
 
 
-            // Ordenar pela mensagem mais recente
+            // =====================================
+            // PROCESSAR GRUPOS
+            // =====================================
+
+            const gruposDetalhados = await Promise.all(
+
+                listaGrupos.map(async (grupo) => {
+
+                    const mensagens = await buscarMensagensGrupo(
+                        grupo.id
+                    );
+
+                    const ultimaMensagem =
+                        mensagens.length > 0
+                            ? mensagens[mensagens.length - 1]
+                            : null;
+
+                    return {
+                        ...grupo,
+                        ultimaMensagem
+                    };
+
+                })
+
+            );
+
+
+            // Ordenar conversas pela mensagem mais recente
+
             conversasDetalhadas.sort((a, b) => {
 
-                const dataA = a.ultimaMensagem?.created_at || a.created_at;
-                const dataB = b.ultimaMensagem?.created_at || b.created_at;
+                const dataA =
+                    a.ultimaMensagem?.created_at || a.created_at;
+
+                const dataB =
+                    b.ultimaMensagem?.created_at || b.created_at;
 
                 return new Date(dataB) - new Date(dataA);
 
             });
 
+
+            // Ordenar grupos pela mensagem mais recente
+
+            gruposDetalhados.sort((a, b) => {
+
+                const dataA =
+                    a.ultimaMensagem?.created_at || a.created_at;
+
+                const dataB =
+                    b.ultimaMensagem?.created_at || b.created_at;
+
+                return new Date(dataB) - new Date(dataA);
+
+            });
+
+
             setConversas(conversasDetalhadas);
+            setGrupos(gruposDetalhados);
+
 
         } catch (error) {
 
@@ -157,14 +233,21 @@ export default function ConversasScreen({
     }
 
 
-    // Carregar conversas e ouvir novas mensagens
+    // =====================================
+    // CARREGAR E OUVIR NOVAS MENSAGENS
+    // =====================================
+
     useEffect(() => {
+
+        let ativo = true;
 
         carregarConversas();
 
-        const canal = supabase
-            .channel('conversas-novas-mensagens')
 
+        const canal = supabase
+            .channel('conversas-e-grupos-novas-mensagens')
+
+            // Mensagens individuais
             .on(
                 'postgres_changes',
                 {
@@ -173,7 +256,28 @@ export default function ConversasScreen({
                     table: 'messages'
                 },
                 () => {
-                    carregarConversas(false);
+
+                    if (ativo) {
+                        carregarConversas(false);
+                    }
+
+                }
+            )
+
+            // Mensagens dos grupos
+            .on(
+                'postgres_changes',
+                {
+                    event: 'INSERT',
+                    schema: 'public',
+                    table: 'group_messages'
+                },
+                () => {
+
+                    if (ativo) {
+                        carregarConversas(false);
+                    }
+
                 }
             )
 
@@ -181,13 +285,20 @@ export default function ConversasScreen({
 
 
         return () => {
+
+            ativo = false;
+
             supabase.removeChannel(canal);
+
         };
 
     }, []);
 
 
-    // Renderizar conversa
+    // =====================================
+    // RENDERIZAR CONVERSA INDIVIDUAL
+    // =====================================
+
     function renderizarConversa({ item }) {
 
         const nome =
@@ -253,7 +364,9 @@ export default function ConversasScreen({
                         </Text>
 
                         <Text style={styles.horario}>
-                            {formatarHorario(item.ultimaMensagem?.created_at)}
+                            {formatarHorario(
+                                item.ultimaMensagem?.created_at
+                            )}
                         </Text>
 
                     </View>
@@ -309,11 +422,170 @@ export default function ConversasScreen({
     }
 
 
+    // =====================================
+    // RENDERIZAR GRUPO
+    // =====================================
+
+    function renderizarGrupo({ item }) {
+
+        return (
+
+            <TouchableOpacity
+                style={styles.cardGrupo}
+                activeOpacity={0.75}
+                onPress={() => onAbrirGrupo(item)}
+            >
+
+                {/* Avatar */}
+
+                {item.avatar_url ? (
+
+                    <Image
+                        source={{ uri: item.avatar_url }}
+                        style={styles.avatarGrupo}
+                    />
+
+                ) : (
+
+                    <View style={styles.avatarGrupoPadrao}>
+
+                        <Text style={styles.avatarGrupoTexto}>
+                            {item.name.charAt(0).toUpperCase()}
+                        </Text>
+
+                    </View>
+
+                )}
+
+
+                {/* Informações */}
+
+                <Text
+                    style={styles.nomeGrupo}
+                    numberOfLines={1}
+                >
+                    {item.name}
+                </Text>
+
+                <Text
+                    style={styles.mensagemGrupo}
+                    numberOfLines={1}
+                >
+                    {item.ultimaMensagem
+                        ? item.ultimaMensagem.content
+                        : 'Nenhuma mensagem'}
+                </Text>
+
+            </TouchableOpacity>
+
+        );
+
+    }
+
+
+    // =====================================
+    // CABEÇALHO DA LISTA
+    // =====================================
+
+    function renderizarCabecalho() {
+
+        return (
+
+            <View>
+
+                {/* GRUPOS */}
+
+                <View style={styles.gruposHeader}>
+
+                    <View>
+
+                        <Text style={styles.listaTitulo}>
+                            SEUS GRUPOS
+                        </Text>
+
+                        <Text style={styles.listaSubtitulo}>
+                            Converse com várias pessoas
+                        </Text>
+
+                    </View>
+
+
+                    <TouchableOpacity
+                        style={styles.botaoCriarGrupo}
+                        onPress={onCriarGrupo}
+                        activeOpacity={0.8}
+                    >
+
+                        <Text style={styles.textoCriarGrupo}>
+                            + Criar
+                        </Text>
+
+                    </TouchableOpacity>
+
+                </View>
+
+
+                {/* LISTA HORIZONTAL DE GRUPOS */}
+
+                <FlatList
+                    horizontal
+                    data={grupos}
+                    keyExtractor={(item) => String(item.id)}
+                    renderItem={renderizarGrupo}
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.listaGrupos}
+                    ListEmptyComponent={
+
+                        <Text style={styles.gruposVazios}>
+                            Você ainda não participa de grupos.
+                        </Text>
+
+                    }
+                />
+
+
+                {/* CONVERSAS INDIVIDUAIS */}
+
+                <View style={styles.listaHeader}>
+
+                    <View>
+
+                        <Text style={styles.listaTitulo}>
+                            SUAS CONVERSAS
+                        </Text>
+
+                        <Text style={styles.listaSubtitulo}>
+                            Continue suas conversas
+                        </Text>
+
+                    </View>
+
+                    <View style={styles.quantidade}>
+
+                        <Text style={styles.quantidadeTexto}>
+                            {conversas.length}
+                        </Text>
+
+                    </View>
+
+                </View>
+
+            </View>
+
+        );
+
+    }
+
+
+    // =====================================
+    // TELA
+    // =====================================
+
     return (
 
         <View style={styles.container}>
 
-            {/* Cabeçalho */}
+            {/* CABEÇALHO */}
 
             <View style={styles.header}>
 
@@ -354,7 +626,7 @@ export default function ConversasScreen({
             </View>
 
 
-            {/* Conteúdo */}
+            {/* CONTEÚDO */}
 
             {carregando ? (
 
@@ -381,49 +653,17 @@ export default function ConversasScreen({
 
                     renderItem={renderizarConversa}
 
+                    ListHeaderComponent={renderizarCabecalho}
+
                     showsVerticalScrollIndicator={false}
 
                     contentContainerStyle={
-                        conversas.length === 0
-                            ? styles.listaVazia
-                            : styles.lista
+                        styles.lista
                     }
 
                     refreshing={carregando}
 
                     onRefresh={() => carregarConversas()}
-
-                    ListHeaderComponent={
-
-                        conversas.length > 0 ? (
-
-                            <View style={styles.listaHeader}>
-
-                                <View>
-
-                                    <Text style={styles.listaTitulo}>
-                                        SUAS CONVERSAS
-                                    </Text>
-
-                                    <Text style={styles.listaSubtitulo}>
-                                        Continue suas conversas
-                                    </Text>
-
-                                </View>
-
-                                <View style={styles.quantidade}>
-
-                                    <Text style={styles.quantidadeTexto}>
-                                        {conversas.length}
-                                    </Text>
-
-                                </View>
-
-                            </View>
-
-                        ) : null
-
-                    }
 
                     ListEmptyComponent={
 
@@ -461,7 +701,10 @@ export default function ConversasScreen({
 }
 
 
-// Estilos
+// =====================================
+// ESTILOS
+// =====================================
+
 const styles = StyleSheet.create({
 
     container: {
@@ -469,7 +712,9 @@ const styles = StyleSheet.create({
         backgroundColor: CORES.fundo
     },
 
+
     // Cabeçalho
+
     header: {
         minHeight: 90,
         paddingHorizontal: 20,
@@ -533,10 +778,13 @@ const styles = StyleSheet.create({
         color: CORES.destaque
     },
 
+
     // Lista
+
     lista: {
         paddingHorizontal: 17,
-        paddingBottom: 120
+        paddingBottom: 120,
+        flexGrow: 1
     },
 
     listaHeader: {
@@ -579,7 +827,94 @@ const styles = StyleSheet.create({
         color: CORES.destaque
     },
 
-    // Conversa
+
+    // Grupos
+
+    gruposHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginTop: 25,
+        marginBottom: 15,
+        paddingHorizontal: 3
+    },
+
+    botaoCriarGrupo: {
+        backgroundColor: CORES.cartaoSecundario,
+        borderWidth: 1,
+        borderColor: CORES.destaque,
+        borderRadius: 12,
+        paddingHorizontal: 13,
+        paddingVertical: 9
+    },
+
+    textoCriarGrupo: {
+        color: CORES.destaque,
+        fontSize: 12,
+        fontWeight: '800'
+    },
+
+    listaGrupos: {
+        paddingBottom: 10
+    },
+
+    cardGrupo: {
+        width: 125,
+        backgroundColor: CORES.cartao,
+        borderRadius: 17,
+        borderWidth: 1,
+        borderColor: CORES.borda,
+        padding: 12,
+        marginRight: 11
+    },
+
+    avatarGrupo: {
+        width: 48,
+        height: 48,
+        borderRadius: 16,
+        backgroundColor: CORES.cartaoSecundario,
+        marginBottom: 10
+    },
+
+    avatarGrupoPadrao: {
+        width: 48,
+        height: 48,
+        borderRadius: 16,
+        backgroundColor: CORES.cartaoSecundario,
+        borderWidth: 1,
+        borderColor: CORES.borda,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 10
+    },
+
+    avatarGrupoTexto: {
+        color: CORES.destaque,
+        fontSize: 20,
+        fontWeight: '800'
+    },
+
+    nomeGrupo: {
+        color: CORES.texto,
+        fontSize: 12,
+        fontWeight: '800'
+    },
+
+    mensagemGrupo: {
+        color: CORES.secundario,
+        fontSize: 10,
+        marginTop: 5
+    },
+
+    gruposVazios: {
+        color: CORES.secundario,
+        fontSize: 12,
+        paddingVertical: 15
+    },
+
+
+    // Conversa individual
+
     conversa: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -707,7 +1042,9 @@ const styles = StyleSheet.create({
         marginLeft: 8
     },
 
+
     // Carregamento
+
     loadingContainer: {
         flex: 1,
         justifyContent: 'center',
@@ -720,16 +1057,12 @@ const styles = StyleSheet.create({
         marginTop: 13
     },
 
+
     // Estado vazio
-    listaVazia: {
-        flexGrow: 1,
-        justifyContent: 'center',
-        paddingHorizontal: 35,
-        paddingBottom: 100
-    },
 
     vazio: {
-        alignItems: 'center'
+        alignItems: 'center',
+        paddingTop: 40
     },
 
     vazioIcone: {
